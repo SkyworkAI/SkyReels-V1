@@ -81,7 +81,7 @@ SkyReelsInfer is a highly efficient video generation inference framework that en
 Begin by cloning the repository:
 ```shell
 git clone https://github.com/SkyworkAI/SkyReels-V1
-cd skyreelsinfer
+cd SkyReels-V1
 ```
 
 ### Installation Guide for Linux
