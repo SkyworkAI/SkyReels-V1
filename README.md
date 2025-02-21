@@ -11,6 +11,43 @@
 ---
 Welcome to the SkyReels V1 repository! Here, you'll find the Text-to-Video & Image-to-Video model weights and inference code for our groundbreaking video foundation model.
 
+## 🔥🔥🔥 News!!
+
+* Feb 18, 2025: 👋 We release the inference code and model weights of [SkyReels-V1 Text2Video Model](https://huggingface.co/Skywork/SkyReels-V1-Hunyuan-T2V).
+* Feb 18, 2025: 👋 We release the inference code and model weights of [SkyReels-V1 Image2Video Model](https://huggingface.co/Skywork/SkyReels-V1-Hunyuan-I2V).
+* Feb 18, 2025: 🔥 We also release [SkyReels-A1](https://github.com/SkyworkAI/SkyReels-A1). This is an open-sourced and effective framework portrait image animation model.
+
+## 🎥 Demos
+<div align="center">
+<video src="https://github.com/user-attachments/docs/assets/2dbd116a-033d-4f7e-bd90-78a3da47cd9c" width="70%"> </video>
+</div>
+
+## 📑 TODO List
+
+- SkyReels-V1 (Text2Video Model)
+  - [x] Checkpoints
+  - [x] Inference Code
+  - [x] Web Demo (Gradio)
+  - [x] User-Level GPU Inference on RTX4090
+  - [x] Parallel Inference on Multi-GPUs
+  - [ ] Prompt Rewrite && Prompt Guidance
+  - [ ] CFG-distilled Model
+  - [ ] Lite Model
+  - [ ] 720P Version
+  - [ ] ComfyUI
+
+- SkyReels-V1 (Image2Video Model)
+  - [x] Checkpoints
+  - [x] Inference Code
+  - [x] Web Demo (Gradio)
+  - [x] User-Level GPU Inference on RTX4090
+  - [x] Parallel Inference on Multi-GPUs
+  - [ ] Prompt Rewrite && Prompt Guidance
+  - [ ] CFG-distilled Model
+  - [ ] Lite Model
+  - [ ] 720P Version
+  - [ ] ComfyUI
+
 ## 🌟 Overview
 
 SkyReels V1 is the first and most advanced open-source human-centric video foundation model. By fine-tuning <a href="https://huggingface.co/tencent/HunyuanVideo">HunyuanVideo</a> on O(10M) high-quality film and television clips, SkyReels V1 offers three key advantages:
@@ -18,11 +55,6 @@ SkyReels V1 is the first and most advanced open-source human-centric video found
 1. **Open-Source Leadership**: Our Text-to-Video model achieves state-of-the-art (SOTA) performance among open-source models, comparable to proprietary models like Kling and Hailuo.
 2. **Advanced Facial Animation**: Captures 33 distinct facial expressions with over 400 natural movement combinations, accurately reflecting human emotions.
 3. **Cinematic Lighting and Aesthetics**: Trained on high-quality Hollywood-level film and television data, each generated frame exhibits cinematic quality in composition, actor positioning, and camera angles.
-
-## 🎥 Demos
-<div align="center">
-<video src="https://github.com/user-attachments/docs/assets/2dbd116a-033d-4f7e-bd90-78a3da47cd9c" width="70%"> </video>
-</div>
 
 ## 🔑 Key Features
 
