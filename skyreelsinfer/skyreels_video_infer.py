@@ -81,8 +81,12 @@ class SkyReelsVideoSingleGpuInfer:
     ):
         self.task_type = task_type
         self.gpu_rank = local_rank
+
+        nccl_available = dist.is_nccl_available()
+        communication_backend = "nccl" if nccl_available else "gloo"
+
         dist.init_process_group(
-            backend="nccl",
+            backend=communication_backend,
             init_method="tcp://127.0.0.1:23456",
             timeout=timedelta(seconds=600),
             world_size=world_size,
@@ -98,21 +102,24 @@ class SkyReelsVideoSingleGpuInfer:
             model_id=model_id, quant_model=quant_model, gpu_device=gpu_device
         )
 
-        from para_attn.context_parallel import init_context_parallel_mesh
-        from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
-        from para_attn.parallel_vae.diffusers_adapters import parallelize_vae
+        if nccl_available:
+            from para_attn.context_parallel import init_context_parallel_mesh
+            from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
+            from para_attn.parallel_vae.diffusers_adapters import parallelize_vae
 
-        max_batch_dim_size = 2 if enable_cfg_parallel and world_size > 1 else 1
-        max_ulysses_dim_size = int(world_size / max_batch_dim_size)
-        logger.info(f"max_batch_dim_size: {max_batch_dim_size}, max_ulysses_dim_size:{max_ulysses_dim_size}")
+            max_batch_dim_size = 2 if enable_cfg_parallel and world_size > 1 else 1
+            max_ulysses_dim_size = int(world_size / max_batch_dim_size)
+            logger.info(f"max_batch_dim_size: {max_batch_dim_size}, max_ulysses_dim_size:{max_ulysses_dim_size}")
 
-        mesh = init_context_parallel_mesh(
-            self.pipe.device.type,
-            max_ring_dim_size=1,
-            max_batch_dim_size=max_batch_dim_size,
-        )
-        parallelize_pipe(self.pipe, mesh=mesh)
-        parallelize_vae(self.pipe.vae, mesh=mesh._flatten())
+            mesh = init_context_parallel_mesh(
+                self.pipe.device.type,
+                max_ring_dim_size=1,
+                max_batch_dim_size=max_batch_dim_size,
+            )
+            parallelize_pipe(self.pipe, mesh=mesh)
+            parallelize_vae(self.pipe.vae, mesh=mesh._flatten())
+        else:
+            assert world_size == 1, "Multi GPU distribution only supported on platforms supporting nccl"
 
         if is_offload:
             Offload.offload(
