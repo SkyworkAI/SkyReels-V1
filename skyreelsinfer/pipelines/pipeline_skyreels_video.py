@@ -303,7 +303,7 @@ class SkyreelsVideoPipeline(HunyuanVideoPipeline):
             num_channels_latents,
             height,
             width,
-            num_latent_frames,
+            num_frames,
             torch.float32,
             device,
             generator,
