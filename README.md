@@ -1,3 +1,36 @@
+Original SkyReels repo: https://github.com/SkyworkAI/SkyReels-V1
+
+Improvements by pftq:
+- 192-frame-limit bug fixed via workaround using Riflex (credits Kijai and thu-ml for the approach in ComfyUI).
+- Fixed random number seed not changing.
+- Fixed videos only being 2mbps bitrate by using FFMPEG, which allows for video bitrate option (ie "--mbps 15")
+- embedding prompt details in the mp4 comment metadata (similar to ComfyUI).
+- "--variety_batch" option for varying steps/cfg in the same batch.
+- "--color_match" for matching the color profile/grading of the reference image with mkl.
+- More useful video filename with datetime_width-frames_cfg_steps_seed
+
+Sample prompt
+```
+python video_generate.py \
+--gpu_num 1 \
+--model_id "Skywork/SkyReels-V1-Hunyuan-I2V" \
+--task_type i2v \
+--guidance_scale 8 \
+--embedded_guidance_scale 1 \
+--width 720 \
+--height 720 \
+--num_frames 193 \
+--num_inference_steps 100 \
+--seed -1 \
+--image "image.jpg" \
+--prompt "FPS-24, ..." \
+--negative_prompt "chaotic, distortion, morphing, shaky camera, panning, zoom, glare, lens flare, camera movement, blur, out of focus, low quality, low resolution, static image, overexposed, deformation, bad hands, bad teeth, bad eyes, bad limbs" \
+--color_match \
+--variety_batch \
+--mbps 15 \
+--video_num 10
+```
+
 <p align="center">
   <img src="docs/assets/logo2.png" alt="SkyReels Logo" width="50%">
 </p>
