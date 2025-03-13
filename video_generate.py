@@ -62,7 +62,7 @@ if __name__ == "__main__":
             parameters_level=args.parameters_level,
             compiler_transformer=args.compiler_transformer,
         ),
-        enable_cfg_parallel=args.guidance_scale > 1.0 and not args.sequence_batch,
+        enable_cfg_parallel=args.guidance_scale > 1.0,
     )
     print("finish pipeline init")
     kwargs = {
