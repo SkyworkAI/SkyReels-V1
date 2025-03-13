@@ -250,7 +250,7 @@ Under the same A800 resource conditions, the SkyReelsInfer version reduces end-t
 The SkyReelsInfer version features a more robust multi-GPU deployment strategy.
 
 ## Acknowledgements
-We would like to thank the contributors of <a href="https://huggingface.co/tencent/HunyuanVideo">HunyuanVideo</a> repositories, for their open research and contributions.
+We would like to thank the contributors of <a href="https://huggingface.co/tencent/HunyuanVideo">HunyuanVideo</a>, <a href="https://github.com/chengzeyi/ParaAttention">ParaAttention</a> and <a href="https://github.com/huggingface/diffusers">Diffusers</a> repositories, for their open research and contributions.
 
 ## Citation
 
