@@ -1,3 +1,77 @@
+Original SkyReels repo: https://github.com/SkyworkAI/SkyReels-V1
+
+Improvements by pftq:
+- **Major**. 192-frame-limit bug fixed via workaround using Riflex (credits Kijai for bringing it up in ComfyUI and thu-ml for the approach). The fix automatically kicks in at frame counts > 193
+- **Major**. Added "--detect_bad_renders" to automatically abort and retry bad renders (still image, random scene change, i2v becoming t2v). Details further below.
+- Fixed random number seed not changing.
+- Fixed videos only being 2mbps bitrate by using FFMPEG, which allows for video bitrate option (ie "--mbps 15")
+- embedding prompt details in the mp4 comment metadata (similar to ComfyUI).
+- "--variety_batch" option for varying steps/cfg in the same batch.
+- "--color_match" for matching the color profile/grading of the reference image with mkl.
+- More useful video filename with datetime, width, frames, cfg, steps, seed, and other details.
+
+**Details on "--detect_bad_renders" feature:**
+- "--detect_bad_renders" enables this functionality. It does a check during the sampling process and another after the video is fully decoded. The processing time is minimal, only scanning the first 2 seconds of the video once during sampling and once again after the video is done. It looks for major frame-to-frame changes, consecutive 24-frames of still image, and major deviation from the input image within the first 2 seconds as triggers for a "bad render." If it detects early and aborts, this saves you 75% of the render time on a video you won't want anyway.
+- "--bad_render_retries 5" will let it retry up to 5 times (or whatever number you pick) using the same settings but different seed. This lets you avoid requesting a batch of 3 videos and getting zero if all 3 are bad renders. Can be used in conjunction with "--variety_batch" to move onto the next video with differing CFG/steps.
+- "--bad_render_threshold 0.02" is the default threshold for checking a video early against the input image and is conservative. 0.03 often leads to bad renders as well, so increase it if you want. 0.04 and above generally do not become stills or scene changes.
+- "--save_bad_renders" can be added if you want to save the bad render in case for manual inspection. If the video is already in the decoding phase, it'll still be watchable, but it'll be mostly noise if the render was aborted early in sampling.
+
+My guide to getting good results with SkyReels: https://github.com/SkyworkAI/SkyReels-V1/issues/96
+
+Sample prompt, single GPU, variety batch of 10-sec videos with Riflex (automatic at frames>193)
+```
+python video_generate.py \
+--gpu_num 1 \
+--quant \
+--offload \
+--high_cpu_memory \
+--parameters_level \
+--sequence_batch \
+--model_id "Skywork/SkyReels-V1-Hunyuan-I2V" \
+--task_type i2v \
+--guidance_scale 8 \
+--embedded_guidance_scale 1 \
+--width 720 \
+--height 720 \
+--num_frames 241 \
+--num_inference_steps 100 \
+--seed -1 \
+--image "image.jpg" \
+--prompt "FPS-24, ..." \
+--negative_prompt "chaotic, distortion, morphing, shaky camera, panning, zoom, glare, lens flare, camera movement, blur, out of focus, low quality, low resolution, static image, overexposed, deformation, bad hands, bad teeth, bad eyes, bad limbs" \
+--color_match \
+--variety_batch \
+--detect_bad_renders \
+--bad_render_retries 5 \
+--bad_render_threshold 0.02 \
+--mbps 15 \
+--video_num 10
+```
+
+For multi-GPU, variety batch of 10-sec videos with Riflex (automatic at frames>193)
+```
+python video_generate.py \
+--gpu_num 8 \
+--model_id "Skywork/SkyReels-V1-Hunyuan-I2V" \
+--task_type i2v \
+--guidance_scale 8 \
+--embedded_guidance_scale 1 \
+--width 960 \
+--height 960 \
+--num_frames 241 \
+--num_inference_steps 100 \
+--image "image.jpg" \
+--prompt "FPS-24, ..." \
+--negative_prompt "chaotic, distortion, morphing, shaky camera, panning, zoom, camera movement, blur, out of focus, low quality, low resolution, static image, overexposed, deformation, bad hands, bad teeth, bad eyes, bad limbs" \
+--color_match \
+--variety_batch \
+--detect_bad_renders \
+--bad_render_retries 5 \
+--bad_render_threshold 0.02 \
+--mbps 15 \
+--video_num 10
+```
+
 <p align="center">
   <img src="docs/assets/logo2.png" alt="SkyReels Logo" width="50%">
 </p>

@@ -14,3 +14,4 @@ imageio-ffmpeg==0.5.1
 nvtx==0.2.10
 opencv-python==4.10.0.84
 imageio==2.36.1
+color_matcher

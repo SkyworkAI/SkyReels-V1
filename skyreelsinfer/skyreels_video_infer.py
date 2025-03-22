@@ -31,6 +31,113 @@ console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
 
+###############################################
+# 20250308 pftq: Riflex workaround to fix 192-frame-limit bug, credit to Kijai for finding it in ComfyUI and thu-ml for making it
+# https://github.com/thu-ml/RIFLEx/blob/main/riflex_utils.py
+from diffusers.models.embeddings import get_1d_rotary_pos_embed
+import numpy as np
+from typing import Union,Optional
+def get_1d_rotary_pos_embed_riflex(
+    dim: int,
+    pos: Union[np.ndarray, int],
+    theta: float = 10000.0,
+    use_real=False,
+    k: Optional[int] = None,
+    L_test: Optional[int] = None,
+):
+    """
+    RIFLEx: Precompute the frequency tensor for complex exponentials (cis) with given dimensions.
+
+    This function calculates a frequency tensor with complex exponentials using the given dimension 'dim' and the end
+    index 'end'. The 'theta' parameter scales the frequencies. The returned tensor contains complex values in complex64
+    data type.
+
+    Args:
+        dim (`int`): Dimension of the frequency tensor.
+        pos (`np.ndarray` or `int`): Position indices for the frequency tensor. [S] or scalar
+        theta (`float`, *optional*, defaults to 10000.0):
+            Scaling factor for frequency computation. Defaults to 10000.0.
+        use_real (`bool`, *optional*):
+            If True, return real part and imaginary part separately. Otherwise, return complex numbers.
+        k (`int`, *optional*, defaults to None): the index for the intrinsic frequency in RoPE
+        L_test (`int`, *optional*, defaults to None): the number of frames for inference
+    Returns:
+        `torch.Tensor`: Precomputed frequency tensor with complex exponentials. [S, D/2]
+    """
+    assert dim % 2 == 0
+
+    if isinstance(pos, int):
+        pos = torch.arange(pos)
+    if isinstance(pos, np.ndarray):
+        pos = torch.from_numpy(pos)  # type: ignore  # [S]
+
+    freqs = 1.0 / (
+            theta ** (torch.arange(0, dim, 2, device=pos.device)[: (dim // 2)].float() / dim)
+    )  # [D/2]
+
+    # === Riflex modification start ===
+    # Reduce the intrinsic frequency to stay within a single period after extrapolation (see Eq. (8)).
+    # Empirical observations show that a few videos may exhibit repetition in the tail frames.
+    # To be conservative, we multiply by 0.9 to keep the extrapolated length below 90% of a single period.
+    if k is not None:
+        freqs[k-1] = 0.9 * 2 * torch.pi / L_test
+    # === Riflex modification end ===
+
+    freqs = torch.outer(pos, freqs)  # type: ignore   # [S, D/2]
+    if use_real:
+        freqs_cos = freqs.cos().repeat_interleave(2, dim=1).float()  # [S, D]
+        freqs_sin = freqs.sin().repeat_interleave(2, dim=1).float()  # [S, D]
+        return freqs_cos, freqs_sin
+    else:
+        # lumina
+        freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64     # [S, D/2]
+        return freqs_cis
+
+# https://github.com/thu-ml/RIFLEx/blob/main/hunyuanvideo.py
+from diffusers.models.transformers.transformer_hunyuan_video import HunyuanVideoRotaryPosEmbed
+class HunyuanVideoRotaryPosEmbedRifleX(HunyuanVideoRotaryPosEmbed):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.k = 0
+        self.L_test = 66
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        batch_size, num_channels, num_latent_frames, height, width = hidden_states.shape
+        rope_sizes = [num_latent_frames // self.patch_size_t, height // self.patch_size, width // self.patch_size]
+
+        num_frames = (num_latent_frames-1)*4 + 1
+        if num_frames > 192:
+            self.k = 4
+            L_train = 25
+            self.k = max(4, min(8, 2 + ((num_frames + 3) // (4 * L_train))))
+            self.L_test = num_latent_frames # latent frames
+        #print ("DEBUG: num_frames="+str(num_frames)+" | k="+str(self.k)+" | L_test="+str(self.L_test))
+        
+        axes_grids = []
+        for i in range(3):
+            grid = torch.arange(0, rope_sizes[i], device=hidden_states.device, dtype=torch.float32)
+            axes_grids.append(grid)
+        grid = torch.meshgrid(*axes_grids, indexing="ij")  # [W, H, T]
+        grid = torch.stack(grid, dim=0)  # [3, W, H, T]
+
+        freqs = []
+        for i in range(3):
+            # === RIFLEx modification start ===
+            # apply RIFLEx for time dimension
+            if i == 0 and self.k > 0:
+                freq = get_1d_rotary_pos_embed_riflex(self.rope_dim[i], grid[i].reshape(-1), self.theta, use_real=True, k=self.k, L_test=self.L_test)
+            # === RIFLEx modification end ===
+            else:
+                freq = get_1d_rotary_pos_embed(self.rope_dim[i], grid[i].reshape(-1), self.theta, use_real=True)
+            freqs.append(freq)
+
+        freqs_cos = torch.cat([f[0] for f in freqs], dim=1)  # (W * H * T, D / 2)
+        freqs_sin = torch.cat([f[1] for f in freqs], dim=1)  # (W * H * T, D / 2)
+        return freqs_cos, freqs_sin
+
+###############################################
+
+
 class SkyReelsVideoSingleGpuInfer:
     def _load_model(
         self,
@@ -98,6 +205,13 @@ class SkyReelsVideoSingleGpuInfer:
             model_id=model_id, quant_model=quant_model, gpu_device=gpu_device
         )
 
+        #########################
+        # 20250308 pftq: for Riflex workaround for fixing 192-frame-limit bug
+        original_rope = self.pipe.transformer.rope
+        self.pipe.transformer.rope = HunyuanVideoRotaryPosEmbedRifleX(original_rope.patch_size, original_rope.patch_size_t, original_rope.rope_dim,original_rope.theta)
+
+        ######################
+
         from para_attn.context_parallel import init_context_parallel_mesh
         from para_attn.context_parallel.diffusers_adapters import parallelize_pipe
         from para_attn.parallel_vae.diffusers_adapters import parallelize_vae
@@ -148,7 +262,7 @@ class SkyReelsVideoSingleGpuInfer:
         if self.task_type == TaskType.I2V:
             init_kwargs["image"] = Image.new("RGB", (544, 960), color="black")
         self.pipe(**init_kwargs)
-
+    
     def damon_inference(self, request_queue: mp.Queue, response_queue: mp.Queue):
         response_queue.put(f"rank:{self.gpu_rank} ready")
         logger.info(f"rank:{self.gpu_rank} finish init pipe")
@@ -156,15 +270,33 @@ class SkyReelsVideoSingleGpuInfer:
             logger.info(f"rank:{self.gpu_rank} waiting for request")
             kwargs = request_queue.get()
             logger.info(f"rank:{self.gpu_rank} kwargs: {kwargs}")
+            
             if "seed" in kwargs:
                 kwargs["generator"] = torch.Generator("cuda").manual_seed(kwargs["seed"])
                 del kwargs["seed"]
             start_time = time.time()
             assert (self.task_type == TaskType.I2V and "image" in kwargs) or self.task_type == TaskType.T2V
+            """
             out = self.pipe(**kwargs).frames[0]
             logger.info(f"rank:{dist.get_rank()} inference time: {time.time() - start_time}")
             if dist.get_rank() == 0:
                 response_queue.put(out)
+            """
+            # 20250319 pftq: Get full output object including frames, badRender, and maxFrameChange
+            output = self.pipe(**kwargs)
+            logger.info(f"rank:{dist.get_rank()} inference time: {time.time() - start_time}")
+            if dist.get_rank() == 0:
+                # Pass first frame, badRender, and maxFrameChange through the queue
+                response_queue.put({
+                    "frames": output.frames[0],  # Keep original behavior of sending first frame
+                    "badRender": output.badRender,
+                    "maxFrameChange": output.maxFrameChange,
+                    "maxStillCount": output.maxStillCount,
+                    "maxFrameChange_pre": output.maxFrameChange_pre,
+                    "maxStillCount_pre": output.maxStillCount_pre,
+                    "badRenderAtStep": output.badRenderAtStep,
+                    "initialMatch": output.initialMatch
+                })
 
 
 def single_gpu_run(
